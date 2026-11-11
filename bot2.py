@@ -1,12 +1,14 @@
 import asyncio
-import os         
+import os
 import re
 from aiogram import Bot, Dispatcher, types
 import aiohttp
+from aiohttp import web
 
-# --- НАСТРОЙКИ ---
+# --- НАСТРОЙКИ ЧЕРЕЗ ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ (Безопасно для Render) ---
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
 MODELS_URL = "https://api.groq.com/openai/v1/models"
 
@@ -43,7 +45,6 @@ async def get_available_groq_model():
                 all_models = [m["id"] for m in data.get("data", [])]
                 print(f"📋 Доступные модели на твоем ключе: {all_models}")
                 
-                # Исключаем аудио, охрану, озвучку и "думающие" модели (reasoning)
                 bad_keywords = ["whisper", "guard", "tts", "embed", "deepseek", "qwq", "compound", "orpheus"]
                 text_models = [
                     m for m in all_models 
@@ -107,7 +108,6 @@ async def business_chat_handler(message: types.Message):
                     result = await resp.json()
                     if 'choices' in result and result['choices']:
                         raw_content = result['choices'][0]['message'].get('content') or ""
-                        # Удаляем теги <think>...</think>, если модель всё же их добавила
                         bot_reply = re.sub(r"<think>.*?</think>", "", raw_content, flags=re.DOTALL).strip()
                     
                     if not bot_reply:
@@ -155,15 +155,33 @@ async def business_chat_handler(message: types.Message):
     except Exception as e:
         print(f"❌ Ошибка: {e}")
 
+# --- МИНИ-СЕРВЕР ДЛЯ ПРЕДОТВРАЩЕНИЯ TIMED OUT НА RENDER ---
+async def handle_ping(request):
+    return web.Response(text="Бот живой и работает!")
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    
+    port = int(os.getenv("PORT", 8080))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    print(f"🌐 Веб-сервер запущен на порту {port}")
+
 async def main():
     global ACTIVE_MODEL
-    ACTIVE_MODEL = await get_available_groq_model()
     
+    # Сначала поднимаем веб-сервер, чтобы Render не ругался на таймаут
+    await start_web_server()
+    
+    ACTIVE_MODEL = await get_available_groq_model()
     if not ACTIVE_MODEL:
         print("⛔ Не найдено ни одной рабочей текстовой модели.")
         return
         
-    print(f"🚀 Бот запущен! Выбрана модель: {ACTIVE_MODEL}")
+    print(f"🚀 Бот запущен на Render! Выбрана модель: {ACTIVE_MODEL}")
     await dp.start_polling(bot, allowed_updates=["message", "business_message", "business_connection"])
 
 if __name__ == "__main__":
