@@ -4,8 +4,8 @@ from aiogram import Bot, Dispatcher, types
 import aiohttp
 
 # --- НАСТРОЙКИ ---
-TELEGRAM_BOT_TOKEN = "9129198401:AAHu04_a9T-Z8dZHv7vkQm5NA8eGPjLl5iU"
-GROQ_API_KEY = "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"
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
 MODELS_URL = "https://api.groq.com/openai/v1/models"
 
